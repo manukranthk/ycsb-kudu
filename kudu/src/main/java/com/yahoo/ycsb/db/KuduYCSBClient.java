@@ -69,13 +69,15 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final String SYNC_OPS_OPT = "sync_ops";
   private static final String PRINT_ROW_ERRORS_OPT = "print_row_errors";
   private static final String PRE_SPLIT_NUM_TABLETS_OPT = "pre_split_num_tablets";
-  private static final String TABLE_NAME = "ycsb";
+  private static final String TABLE_NAME_OPT = "table_name";
+  private static final String DEFAULT_TABLE_NAME = "ycsb";
   private static final ColumnSchema keyColumn = new ColumnSchema(KEY, STRING, true);
   private static KuduClient client;
   private static Schema schema;
   public boolean debug = false;
   public boolean sync = true;
   public boolean printErrors = false;
+  public String tableName;
   private KuduSession session;
   private KuduTable table;
 
@@ -93,16 +95,24 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     if (getProperties().getProperty(PRINT_ROW_ERRORS_OPT) != null) {
       this.printErrors = getProperties().getProperty(PRINT_ROW_ERRORS_OPT).equals("true");
     }
-    initClient(debug, getProperties());
+    if (getProperties().getProperty(PRINT_ROW_ERRORS_OPT) != null) {
+      this.printErrors = getProperties().getProperty(PRINT_ROW_ERRORS_OPT).equals("true");
+    }
+    this.tableName = getProperties().getProperty(TABLE_NAME_OPT);
+    if (this.tableName == null) {
+       this.tableName = DEFAULT_TABLE_NAME;
+    }
+    initClient(debug, tableName, getProperties());
     this.session = client.newSession();
     this.session.setFlushMode(this.sync ? KuduSession.FlushMode.AUTO_FLUSH_SYNC : KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
     this.session.setMutationBufferSpace(100);
-    this.table = client.openTable(TABLE_NAME, schema);
+    this.table = client.openTable(tableName, schema);
     // do the lookups
-    this.read(TABLE_NAME, "user", null, new HashMap<String, ByteIterator>());
+    this.read(tableName, "user", null, new HashMap<String, ByteIterator>());
   }
 
-  private synchronized static void initClient(boolean debug, Properties prop) throws DBException {
+  private synchronized static void initClient(boolean debug, String tableName, Properties prop)
+      throws DBException {
     if (client != null) return;
 
     String masterAddress = prop.getProperty("masterAddress");
@@ -154,7 +164,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       builder.addSplitKey("user" + (100 / numTablets * i));
     }
 
-    Deferred<Object> d = client.createTable(TABLE_NAME, schema, builder);
+    Deferred<Object> d = client.createTable(tableName, schema, builder);
     d.addErrback(new Callback<Object, Object>() {
       @Override
       public Object call(Object arg) throws Exception {
