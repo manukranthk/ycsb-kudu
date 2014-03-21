@@ -31,6 +31,7 @@ import kudu.rpc.ColumnRangePredicate;
 import kudu.rpc.CreateTableBuilder;
 import kudu.rpc.Delete;
 import kudu.rpc.Insert;
+import kudu.rpc.KeyBuilder;
 import kudu.rpc.KuduClient;
 import kudu.rpc.KuduScanner;
 import kudu.rpc.KuduSession;
@@ -159,9 +160,10 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     schema = new Schema(columns);
 
     CreateTableBuilder builder = new CreateTableBuilder();
+    KeyBuilder keyBuilder = new KeyBuilder(schema);
     // create n-1 split keys, which will end up being n tablets master-side
     for (int i = 1; i < numTablets; i++) {
-      builder.addSplitKey("user" + (100 / numTablets * i));
+      builder.addSplitKey(keyBuilder.addString("user" + (100 / numTablets * i)));
     }
 
     Deferred<Object> d = client.createTable(tableName, schema, builder);
