@@ -322,7 +322,8 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     Insert insert = this.table.newInsert();
     insert.addString(KEY, key);
     for (int i = 1; i < schema.getColumnCount(); i++) {
-      insert.addString(schema.getColumn(i).getName(), values.get(schema.getColumn(i).getName()).toString());
+      insert.addString(schema.getColumn(i).getName(), new String(values.get(schema.getColumn(i)
+          .getName()).toArray()));
     }
     Deferred<Object> d = session.apply(insert);
     d.addErrback(defaultErrorCB);
