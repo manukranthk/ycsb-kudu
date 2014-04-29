@@ -66,6 +66,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public static final int ServerError = -1;
   public static final int HttpError = -2;
   public static final int NoMatchingRecord = -3;
+  public static final int MAX_TABLETS = 10000;
   private static final String DEBUG_OPT = "debug";
   private static final String SYNC_OPS_OPT = "sync_ops";
   private static final String PRINT_ROW_ERRORS_OPT = "print_row_errors";
@@ -135,6 +136,10 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     if (numTabletsStr != null) {
       try {
         numTablets = Integer.valueOf(numTabletsStr);
+        if (numTablets > MAX_TABLETS) {
+          throw new DBException("Specified number of tablets (" + numTablets + ") must be equal " +
+              "or below " + MAX_TABLETS);
+        }
       } catch (NumberFormatException ex) {
         throw new DBException("Provided number of tablets isn't a valid integer");
       }
@@ -163,7 +168,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     KeyBuilder keyBuilder = new KeyBuilder(schema);
     // create n-1 split keys, which will end up being n tablets master-side
     for (int i = 1; i < numTablets; i++) {
-      builder.addSplitKey(keyBuilder.addString("user" + (100 / numTablets * i)));
+      int startKeyInt = MAX_TABLETS / numTablets * i;
+      String startKey = String.format("%04d", startKeyInt);
+      builder.addSplitKey(keyBuilder.addString("user" + startKey));
     }
 
     Deferred<Object> d = client.createTable(tableName, schema, builder);
@@ -297,7 +304,8 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     for (int i = 1; i < schema.getColumnCount(); i++) {
       String columnName = schema.getColumn(i).getName();
       if (values.containsKey(columnName)) {
-        update.addString(columnName, values.get(columnName).toString());
+        String value = values.get(columnName).toString();
+        update.addString(columnName, value);
       }
     }
     Deferred<Object> d = session.apply(update);
