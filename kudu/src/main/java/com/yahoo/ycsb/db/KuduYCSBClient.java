@@ -122,7 +122,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       masterAddress = "localhost";
     }
     String masterPortStr = prop.getProperty("masterPort");
-    int masterPort = 64000;
+    int masterPort = 7051;
     if (masterPortStr != null) {
       try {
         masterPort = Integer.valueOf(masterPortStr);
