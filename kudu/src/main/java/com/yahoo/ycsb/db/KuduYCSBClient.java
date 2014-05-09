@@ -67,6 +67,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public static final int HttpError = -2;
   public static final int NoMatchingRecord = -3;
   public static final int MAX_TABLETS = 10000;
+  public static final long DEFAULT_SLEEP = 10000;
   private static final String DEBUG_OPT = "debug";
   private static final String SYNC_OPS_OPT = "sync_ops";
   private static final String PRINT_ROW_ERRORS_OPT = "print_row_errors";
@@ -108,7 +109,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     this.session = client.newSession();
     this.session.setFlushMode(this.sync ? KuduSession.FlushMode.AUTO_FLUSH_SYNC : KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
     this.session.setMutationBufferSpace(100);
-    this.table = client.openTable(tableName, schema);
+    try {
+      this.table = (KuduTable)client.openTable(tableName).join(DEFAULT_SLEEP);
+    } catch (Exception e) {
+      throw new DBException("Could not open a table because of:", e);
+    }
     // do the lookups
     this.read(tableName, "user", null, new HashMap<String, ByteIterator>());
   }
@@ -181,7 +186,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       }
     });
     try {
-      d.join(10000);
+      d.join(DEFAULT_SLEEP);
     } catch (Exception e) {
       throw new DBException("Cannot connect to the database");
     }
@@ -196,7 +201,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     this.session.close();
     try {
       if ( d != null) {
-        d.join(10000);
+        d.join(DEFAULT_SLEEP);
       }
     } catch (Exception e) {
       System.err.println("Couldn't cleanup properly because: " + e);
@@ -275,7 +280,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     RowResult row;
     KuduScanner.RowResultIterator it;
     HashMap<String, ByteIterator> rowResult = new HashMap<String, ByteIterator>(querySchema.getColumnCount());
-    it = d.join(); // throws exception
+    it = d.join(DEFAULT_SLEEP); // throws exception
     if (it == null) return;
     while (it.hasNext()) {
       if (result.size() == recordcount) return;
@@ -343,7 +348,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
   private int waitOnDeferred(Deferred<Object> d) {
     try {
-      d.join(10000);
+      d.join(DEFAULT_SLEEP);
     } catch (Exception e) {
       System.err.println("Waiting more than 10 seconds for an insert or mutation");
       return ServerError;
@@ -364,7 +369,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     Deferred<Object> d = session.apply(delete);
     if (this.sync) {
       try {
-        d.join(1000);
+        d.join(DEFAULT_SLEEP);
       } catch (Exception e) {
         return ServerError;
       }
@@ -483,7 +488,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     for (Thread t : allthreads) {
       try {
-        t.join();
+        t.join(DEFAULT_SLEEP);
       } catch (InterruptedException e) {
       }
     }
