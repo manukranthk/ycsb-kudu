@@ -36,6 +36,8 @@ import kudu.rpc.KuduClient;
 import kudu.rpc.KuduScanner;
 import kudu.rpc.KuduSession;
 import kudu.rpc.KuduTable;
+import kudu.rpc.Operation;
+import kudu.rpc.PleaseThrottleException;
 import kudu.rpc.Update;
 import kudu.rpc.ProtobufHelper;
 import kudu.rpc.RowResult;
@@ -313,7 +315,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
         update.addString(columnName, value);
       }
     }
-    Deferred<Object> d = session.apply(update);
+    Deferred<Object> d = applyOperation(update);
     if (this.sync) {
       return waitOnDeferred(d);
     } else {
@@ -338,15 +340,27 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       insert.addString(schema.getColumn(i).getName(), new String(values.get(schema.getColumn(i)
           .getName()).toArray()));
     }
-    Deferred<Object> d = session.apply(insert);
-    d.addErrback(defaultErrorCB);
+    Deferred<Object> d = applyOperation(insert);
     if (this.sync) {
       return waitOnDeferred(d);
     }
     return Ok;
   }
 
-  private int waitOnDeferred(Deferred<Object> d) {
+  private Deferred applyOperation(Operation op) {
+    Deferred<Object> d = null;
+    try {
+      d = session.apply(op);
+      d.addErrback(defaultErrorCB);
+    } catch(PleaseThrottleException ex) {
+      waitOnDeferred(ex.getDeferred());
+      applyOperation(op);
+    }
+
+    return d;
+  }
+
+  private int waitOnDeferred(Deferred<?> d) {
     try {
       d.join(DEFAULT_SLEEP);
     } catch (Exception e) {
