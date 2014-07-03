@@ -24,21 +24,7 @@ import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.StringByteIterator;
 import kudu.ColumnSchema;
 import kudu.Schema;
-import kudu.master.Master;
-import kudu.rpc.ColumnRangePredicate;
-import kudu.rpc.CreateTableBuilder;
-import kudu.rpc.Delete;
-import kudu.rpc.Insert;
-import kudu.rpc.KeyBuilder;
-import kudu.rpc.KuduClient;
-import kudu.rpc.KuduScanner;
-import kudu.rpc.KuduSession;
-import kudu.rpc.KuduTable;
-import kudu.rpc.Operation;
-import kudu.rpc.PleaseThrottleException;
-import kudu.rpc.Update;
-import kudu.rpc.RowResult;
-import kudu.tserver.Tserver;
+import kudu.rpc.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -109,7 +95,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     this.session.setFlushMode(this.sync ? KuduSession.FlushMode.AUTO_FLUSH_SYNC : KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
     this.session.setMutationBufferSpace(100);
     try {
-      this.table = (KuduTable)client.openTable(tableName).join(DEFAULT_SLEEP);
+      this.table = client.openTable(tableName).join(DEFAULT_SLEEP);
     } catch (Exception e) {
       throw new DBException("Could not open a table because of:", e);
     }
@@ -178,7 +164,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       builder.addSplitKey(keyBuilder.addString("user" + startKey));
     }
 
-    Deferred<Master.CreateTableResponsePB> d = client.createTable(tableName, schema, builder);
+    Deferred<CreateTableResponse> d = client.createTable(tableName, schema, builder);
     d.addErrback(new Callback<Object, Object>() {
       @Override
       public Object call(Object arg) throws Exception {
@@ -197,7 +183,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
    * Called once per DB instance; there is one DB instance per client thread.
    */
   public void cleanup() throws DBException {
-    Deferred<ArrayList<Tserver.WriteResponsePB>> d = this.session.flush();
+    Deferred<ArrayList<OperationResponse>> d = this.session.flush();
     this.session.close();
     try {
       if ( d != null) {
@@ -346,7 +332,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   }
 
   private Deferred applyOperation(Operation op) {
-    Deferred<Tserver.WriteResponsePB> d = null;
+    Deferred<OperationResponse> d = null;
     try {
       d = session.apply(op);
       d.addErrback(defaultErrorCB);
@@ -378,7 +364,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public int delete(String table, String key) {
     Delete delete = this.table.newDelete();
     delete.addString(KEY, key);
-    Deferred<Tserver.WriteResponsePB> d = session.apply(delete);
+    Deferred<OperationResponse> d = session.apply(delete);
     if (this.sync) {
       try {
         d.join(DEFAULT_SLEEP);
