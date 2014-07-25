@@ -155,7 +155,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     schema = new Schema(columns);
 
     CreateTableBuilder builder = new CreateTableBuilder();
-    builder.setNumReplicas(1);
+    builder.setNumReplicas(3);
     KeyBuilder keyBuilder = new KeyBuilder(schema);
     // create n-1 split keys, which will end up being n tablets master-side
     for (int i = 1; i < numTablets; i++) {
@@ -380,8 +380,14 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     public Object call(Object arg) throws Exception {
       if (arg == null) return null;
       if (!printErrors) return null;
-      if (arg instanceof Exception) {
-        System.out.println("Got exception" + arg.toString());
+      if (arg instanceof RowsWithErrorException) {
+        RowsWithErrorException ex = (RowsWithErrorException) arg;
+        System.out.println(ex.toString());
+        for (RowsWithErrorException.RowError error : ex.getErrors()) {
+          System.out.println(" " + error.getMessage());
+        }
+      } else if (arg instanceof Exception) {
+        System.out.println("Got exception " + arg.toString());
       } else {
         System.out.println("Got an error response back " + arg);
       }
