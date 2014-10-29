@@ -51,7 +51,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public static final int ServerError = -1;
   public static final int HttpError = -2;
   public static final int NoMatchingRecord = -3;
-  public static final int MAX_TABLETS = 10000;
+  public static final int MAX_TABLETS = 9000;
   public static final long DEFAULT_SLEEP = 10000;
   private static final String DEBUG_OPT = "debug";
   private static final String SYNC_OPS_OPT = "sync_ops";
@@ -158,8 +158,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     builder.setNumReplicas(3);
     KeyBuilder keyBuilder = new KeyBuilder(schema);
     // create n-1 split keys, which will end up being n tablets master-side
-    for (int i = 1; i < numTablets; i++) {
-      int startKeyInt = MAX_TABLETS / numTablets * i;
+    for (int i = 1; i < numTablets + 0; i++) {
+      // We do +1000 since YCSB starts at user1.
+      int startKeyInt = (MAX_TABLETS / numTablets * i) + 1000;
       String startKey = String.format("%04d", startKeyInt);
       builder.addSplitKey(keyBuilder.addString("user" + startKey));
     }
