@@ -19,6 +19,7 @@ package com.yahoo.ycsb.db;
 
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
+import com.stumbleupon.async.DeferredGroupException;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.StringByteIterator;
@@ -381,8 +382,17 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     public Object call(Object arg) throws Exception {
       if (arg == null) return null;
       if (!printErrors) return null;
+      if (arg instanceof DeferredGroupException) {
+        arg = RowsWithErrorException.fromDeferredGroupException((DeferredGroupException) arg);
+      }
       if (arg instanceof RowsWithErrorException) {
         RowsWithErrorException ex = (RowsWithErrorException) arg;
+
+        // If we encountered a failover, skip. See KUDU-568.
+        if (ex.areAllErrorsOfAlreadyPresentType(false)) {
+          return null;
+        }
+
         System.out.println(ex.toString());
         for (RowsWithErrorException.RowError error : ex.getErrors()) {
           System.out.println(" " + error.getMessage());
