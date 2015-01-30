@@ -108,18 +108,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       throws DBException {
     if (client != null) return;
 
-    String masterAddress = prop.getProperty("masterAddress");
-    if (masterAddress == null) {
-      masterAddress = "localhost";
-    }
-    String masterPortStr = prop.getProperty("masterPort");
-    int masterPort = 7051;
-    if (masterPortStr != null) {
-      try {
-        masterPort = Integer.valueOf(masterPortStr);
-      } catch (NumberFormatException ex) {
-        throw new DBException("Provided masterPort isn't a valid integer");
-      }
+    String masterQuorum = prop.getProperty("masterQuorum");
+    if (masterQuorum == null) {
+      masterQuorum = "localhost:7051";
     }
 
     String numTabletsStr = prop.getProperty(PRE_SPLIT_NUM_TABLETS_OPT);
@@ -136,9 +127,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       }
     }
 
-    client = new KuduClient(masterAddress, masterPort);
+    client = new KuduClient(masterQuorum);
     if (debug) {
-      System.out.println("Connecting to the master at " + masterAddress + ":" + masterPort);
+      System.out.println("Connecting to the masters at " + masterQuorum);
     }
 
     List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
