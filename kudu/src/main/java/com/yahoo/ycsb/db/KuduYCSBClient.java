@@ -230,16 +230,18 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
         }
         querySchema = new Schema(columns);
       }
-      KuduScanner scanner = client.newScanner(this.table, querySchema);
-      scanner.setMaxNumBytes(recordcount * querySchema.getRowSize());
-      scanner.setLimit(recordcount); // currently noop
 
       ColumnRangePredicate crp = new ColumnRangePredicate(keyColumn);
       crp.setLowerBound(startkey);
       if (recordcount == 1) {
         crp.setUpperBound(startkey);
       }
-      scanner.addColumnRangePredicate(crp);
+
+      KuduScanner scanner = client.newScannerBuilder(this.table, querySchema)
+          .maxNumBytes(recordcount * querySchema.getRowSize())
+          .limit(recordcount) // currently noop
+          .addColumnRangePredicate(crp)
+          .build();
 
       while (scanner.hasMoreRows()) {
         Deferred<KuduScanner.RowResultIterator> data = scanner.nextRows();
