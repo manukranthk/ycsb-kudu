@@ -58,6 +58,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final String SYNC_OPS_OPT = "sync_ops";
   private static final String PRINT_ROW_ERRORS_OPT = "print_row_errors";
   private static final String PRE_SPLIT_NUM_TABLETS_OPT = "pre_split_num_tablets";
+  private static final String TABLE_NUM_REPLICAS = "table_num_replicas";
   private static final String TABLE_NAME_OPT = "table_name";
   private static final String DEFAULT_TABLE_NAME = "ycsb";
   private static final ColumnSchema keyColumn = new ColumnSchema(KEY, STRING, true);
@@ -113,19 +114,13 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       masterQuorum = "localhost:7051";
     }
 
-    String numTabletsStr = prop.getProperty(PRE_SPLIT_NUM_TABLETS_OPT);
-    int numTablets = 4;
-    if (numTabletsStr != null) {
-      try {
-        numTablets = Integer.valueOf(numTabletsStr);
-        if (numTablets > MAX_TABLETS) {
-          throw new DBException("Specified number of tablets (" + numTablets + ") must be equal " +
-              "or below " + MAX_TABLETS);
-        }
-      } catch (NumberFormatException ex) {
-        throw new DBException("Provided number of tablets isn't a valid integer");
-      }
+    int numTablets = getIntFromProp(prop, PRE_SPLIT_NUM_TABLETS_OPT, 4);
+    if (numTablets > MAX_TABLETS) {
+      throw new DBException("Specified number of tablets (" + numTablets + ") must be equal " +
+          "or below " + MAX_TABLETS);
     }
+
+    int numReplicas = getIntFromProp(prop, TABLE_NUM_REPLICAS, 3);
 
     client = new KuduClient(masterQuorum);
     if (debug) {
@@ -147,7 +142,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     schema = new Schema(columns);
 
     CreateTableBuilder builder = new CreateTableBuilder();
-    builder.setNumReplicas(3);
+    builder.setNumReplicas(numReplicas);
     KeyBuilder keyBuilder = new KeyBuilder(schema);
     // create n-1 split keys, which will end up being n tablets master-side
     for (int i = 1; i < numTablets + 0; i++) {
@@ -168,6 +163,20 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       d.join(DEFAULT_SLEEP);
     } catch (Exception e) {
       throw new DBException("Cannot connect to the database");
+    }
+  }
+
+  private static int getIntFromProp(Properties prop, String propName, int defaultValue)
+      throws DBException {
+    String intStr = prop.getProperty(propName);
+    if (intStr == null) {
+      return defaultValue;
+    } else {
+      try {
+        return Integer.valueOf(intStr);
+      } catch (NumberFormatException ex) {
+        throw new DBException("Provided number for " + propName + " isn't a valid integer");
+      }
     }
   }
 
