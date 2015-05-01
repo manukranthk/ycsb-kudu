@@ -24,9 +24,9 @@ import com.stumbleupon.async.TimeoutException;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.StringByteIterator;
-import kudu.ColumnSchema;
-import kudu.Schema;
-import kudu.rpc.*;
+import org.kududb.ColumnSchema;
+import org.kududb.Schema;
+import org.kududb.client.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,7 +37,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.Vector;
 
-import static kudu.Type.STRING;
+import static org.kududb.Type.STRING;
 
 /**
  * Kudu client for YCSB framework
