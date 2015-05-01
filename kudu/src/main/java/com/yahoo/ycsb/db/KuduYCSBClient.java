@@ -20,6 +20,7 @@ package com.yahoo.ycsb.db;
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 import com.stumbleupon.async.DeferredGroupException;
+import com.stumbleupon.async.TimeoutException;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.StringByteIterator;
@@ -52,6 +53,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public static final int ServerError = -1;
   public static final int HttpError = -2;
   public static final int NoMatchingRecord = -3;
+  public static final int Timeout = -4;
   public static final int MAX_TABLETS = 9000;
   public static final long DEFAULT_SLEEP = 10000;
   private static final String DEBUG_OPT = "debug";
@@ -61,7 +63,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final String TABLE_NUM_REPLICAS = "table_num_replicas";
   private static final String TABLE_NAME_OPT = "table_name";
   private static final String DEFAULT_TABLE_NAME = "ycsb";
-  private static final ColumnSchema keyColumn = new ColumnSchema(KEY, STRING, true);
+  private static final ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
+      .key(true)
+      .build();
   private static KuduClient client;
   private static Schema schema;
   public boolean debug = false;
@@ -102,7 +106,13 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       throw new DBException("Could not open a table because of:", e);
     }
     // do the lookups
-    this.read(tableName, "user", null, new HashMap<String, ByteIterator>());
+    int returnCode;
+    do {
+      returnCode = this.read(tableName, "user", null, new HashMap<String, ByteIterator>());
+      if (returnCode == Ok) {
+        System.out.println("Still waiting on the table to be created");
+      }
+    } while (returnCode == Timeout);
   }
 
   private synchronized static void initClient(boolean debug, String tableName, Properties prop)
@@ -128,17 +138,17 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     }
 
     List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
-    columns.add(new ColumnSchema(KEY, STRING, true));
-    columns.add(new ColumnSchema("field0", STRING));
-    columns.add(new ColumnSchema("field1", STRING));
-    columns.add(new ColumnSchema("field2", STRING));
-    columns.add(new ColumnSchema("field3", STRING));
-    columns.add(new ColumnSchema("field4", STRING));
-    columns.add(new ColumnSchema("field5", STRING));
-    columns.add(new ColumnSchema("field6", STRING));
-    columns.add(new ColumnSchema("field7", STRING));
-    columns.add(new ColumnSchema("field8", STRING));
-    columns.add(new ColumnSchema("field9", STRING));
+    columns.add(keyColumn);
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field0", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field1", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field2", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field3", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field4", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field5", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field6", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field7", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field8", STRING).build());
+    columns.add(new ColumnSchema.ColumnSchemaBuilder("field9", STRING).build());
     schema = new Schema(columns);
 
     CreateTableBuilder builder = new CreateTableBuilder();
@@ -233,9 +243,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
         querySchema = schema;
       } else {
         List<ColumnSchema> columns = new ArrayList<ColumnSchema>(fields.size() + 1);
-        columns.add(new ColumnSchema("key", STRING));
+        columns.add(new ColumnSchema.ColumnSchemaBuilder("key", STRING).build());
         for (String col : fields) { // TODO ugh do we need this for every single request?
-          columns.add(new ColumnSchema(col, STRING));
+          columns.add(new ColumnSchema.ColumnSchemaBuilder(col, STRING).build());
         }
         querySchema = new Schema(columns);
       }
@@ -259,6 +269,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       }
       Deferred<KuduScanner.RowResultIterator> closer = scanner.close();
       addAllRowsToResult(closer, recordcount, querySchema, result);
+    } catch (TimeoutException te) {
+      if (printErrors) {
+        System.err.println("Waited too long for a scan operation with start key=" + startkey);
+      }
+      return Timeout;
     } catch (Exception e) {
       System.err.println("Unexpected exception " + e);
       return ServerError;
