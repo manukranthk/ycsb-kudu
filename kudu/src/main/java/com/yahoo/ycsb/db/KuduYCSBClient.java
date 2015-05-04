@@ -66,13 +66,13 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
       .key(true)
       .build();
-  private static KuduClient client;
+  private static AsyncKuduClient client;
   private static Schema schema;
   public boolean debug = false;
   public boolean sync = true;
   public boolean printErrors = false;
   public String tableName;
-  private KuduSession session;
+  private AsyncKuduSession session;
   private KuduTable table;
 
   /**
@@ -132,7 +132,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     int numReplicas = getIntFromProp(prop, TABLE_NUM_REPLICAS, 3);
 
-    client = new KuduClient(masterQuorum);
+    client = new AsyncKuduClient(masterQuorum);
     if (debug) {
       System.out.println("Connecting to the masters at " + masterQuorum);
     }
