@@ -12,7 +12,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>kudu</groupId>
+      <groupId>org.kududb</groupId>
       <artifactId>kudu-client</artifactId>
       <version>${kudu.version}</version>
     </dependency>

@@ -17,8 +17,6 @@
 
 package com.yahoo.ycsb.db;
 
-import com.stumbleupon.async.Callback;
-import com.stumbleupon.async.Deferred;
 import com.stumbleupon.async.DeferredGroupException;
 import com.stumbleupon.async.TimeoutException;
 import com.yahoo.ycsb.ByteIterator;
@@ -57,7 +55,6 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public static final int MAX_TABLETS = 9000;
   public static final long DEFAULT_SLEEP = 10000;
   private static final String DEBUG_OPT = "debug";
-  private static final String SYNC_OPS_OPT = "sync_ops";
   private static final String PRINT_ROW_ERRORS_OPT = "print_row_errors";
   private static final String PRE_SPLIT_NUM_TABLETS_OPT = "pre_split_num_tablets";
   private static final String TABLE_NUM_REPLICAS = "table_num_replicas";
@@ -66,13 +63,12 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
       .key(true)
       .build();
-  private static AsyncKuduClient client;
+  private static KuduClient client;
   private static Schema schema;
   public boolean debug = false;
-  public boolean sync = true;
   public boolean printErrors = false;
   public String tableName;
-  private AsyncKuduSession session;
+  private KuduSession session;
   private KuduTable table;
 
   /**
@@ -82,9 +78,6 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public void init() throws DBException {
     if (getProperties().getProperty(DEBUG_OPT) != null) {
       this.debug = getProperties().getProperty(DEBUG_OPT).equals("true");
-    }
-    if (getProperties().getProperty(SYNC_OPS_OPT) != null) {
-      this.sync = getProperties().getProperty(SYNC_OPS_OPT).equals("true");
     }
     if (getProperties().getProperty(PRINT_ROW_ERRORS_OPT) != null) {
       this.printErrors = getProperties().getProperty(PRINT_ROW_ERRORS_OPT).equals("true");
@@ -98,10 +91,10 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     }
     initClient(debug, tableName, getProperties());
     this.session = client.newSession();
-    this.session.setFlushMode(this.sync ? KuduSession.FlushMode.AUTO_FLUSH_SYNC : KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
+    this.session.setFlushMode(KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
     this.session.setMutationBufferSpace(100);
     try {
-      this.table = client.openTable(tableName).join(DEFAULT_SLEEP);
+      this.table = client.openTable(tableName);
     } catch (Exception e) {
       throw new DBException("Could not open a table because of:", e);
     }
@@ -132,10 +125,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     int numReplicas = getIntFromProp(prop, TABLE_NUM_REPLICAS, 3);
 
-    client = new AsyncKuduClient(masterQuorum);
+    client = new KuduClient(masterQuorum);
     if (debug) {
       System.out.println("Connecting to the masters at " + masterQuorum);
     }
+    client.setTimeoutMillis(DEFAULT_SLEEP);
 
     List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
     columns.add(keyColumn);
@@ -162,17 +156,12 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       builder.addSplitKey(keyBuilder.addString("user" + startKey));
     }
 
-    Deferred<CreateTableResponse> d = client.createTable(tableName, schema, builder);
-    d.addErrback(new Callback<Object, Object>() {
-      @Override
-      public Object call(Object arg) throws Exception {
-        return null;
-      }
-    });
     try {
-      d.join(DEFAULT_SLEEP);
+      client.createTable(tableName, schema, builder);
     } catch (Exception e) {
-      throw new DBException("Cannot connect to the database");
+      if (!e.getMessage().contains("ALREADY_PRESENT")) {
+        throw new DBException("Couldn't create the table", e);
+      }
     }
   }
 
@@ -195,12 +184,10 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
    * Called once per DB instance; there is one DB instance per client thread.
    */
   public void cleanup() throws DBException {
-    Deferred<ArrayList<OperationResponse>> d = this.session.flush();
-    this.session.close();
+
     try {
-      if ( d != null) {
-        d.join(DEFAULT_SLEEP);
-      }
+      ArrayList<OperationResponse> responses = this.session.flush();
+      this.session.close();
     } catch (Exception e) {
       System.err.println("Couldn't cleanup properly because: " + e);
     }
@@ -263,11 +250,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
           .build();
 
       while (scanner.hasMoreRows()) {
-        Deferred<KuduScanner.RowResultIterator> data = scanner.nextRows();
+        AsyncKuduScanner.RowResultIterator data = scanner.nextRows();
         addAllRowsToResult(data, recordcount, querySchema, result);
         if (recordcount == result.size()) break;
       }
-      Deferred<KuduScanner.RowResultIterator> closer = scanner.close();
+      AsyncKuduScanner.RowResultIterator closer = scanner.close();
       addAllRowsToResult(closer, recordcount, querySchema, result);
     } catch (TimeoutException te) {
       if (printErrors) {
@@ -281,11 +268,12 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     return Ok;
   }
 
-  private void addAllRowsToResult(Deferred<KuduScanner.RowResultIterator> d, int recordcount, Schema querySchema, Vector<HashMap<String, ByteIterator>> result) throws Exception {
+  private void addAllRowsToResult(AsyncKuduScanner.RowResultIterator it, int recordcount,
+                                  Schema querySchema, Vector<HashMap<String, ByteIterator>> result)
+      throws Exception {
     RowResult row;
-    KuduScanner.RowResultIterator it;
-    HashMap<String, ByteIterator> rowResult = new HashMap<String, ByteIterator>(querySchema.getColumnCount());
-    it = d.join(DEFAULT_SLEEP); // throws exception
+    HashMap<String, ByteIterator> rowResult =
+        new HashMap<String, ByteIterator>(querySchema.getColumnCount());
     if (it == null) return;
     while (it.hasNext()) {
       if (result.size() == recordcount) return;
@@ -318,12 +306,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
         update.addString(columnName, value);
       }
     }
-    Deferred<Object> d = applyOperation(update);
-    if (this.sync) {
-      return waitOnDeferred(d);
-    } else {
-      System.err.println("Updating shouldn't be used with sync_ops turned off!");
-    }
+    apply(update);
     return Ok;
   }
 
@@ -343,33 +326,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       insert.addString(schema.getColumn(i).getName(), new String(values.get(schema.getColumn(i)
           .getName()).toArray()));
     }
-    Deferred<Object> d = applyOperation(insert);
-    if (this.sync) {
-      return waitOnDeferred(d);
-    }
-    return Ok;
-  }
-
-  private Deferred applyOperation(Operation op) {
-    Deferred<OperationResponse> d = null;
-    try {
-      d = session.apply(op);
-      d.addErrback(defaultErrorCB);
-    } catch(PleaseThrottleException ex) {
-      waitOnDeferred(ex.getDeferred());
-      applyOperation(op);
-    }
-
-    return d;
-  }
-
-  private int waitOnDeferred(Deferred<?> d) {
-    try {
-      d.join(DEFAULT_SLEEP);
-    } catch (Exception e) {
-      System.err.println("Waiting more than 10 seconds for an insert or mutation");
-      return ServerError;
-    }
+    apply(insert);
     return Ok;
   }
 
@@ -383,45 +340,35 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public int delete(String table, String key) {
     Delete delete = this.table.newDelete();
     delete.addString(KEY, key);
-    Deferred<OperationResponse> d = session.apply(delete);
-    if (this.sync) {
-      try {
-        d.join(DEFAULT_SLEEP);
-      } catch (Exception e) {
-        return ServerError;
-      }
-    }
+    apply(delete);
     return Ok;
   }
 
-  Callback<Object, Object> defaultErrorCB = new Callback<Object, Object>() {
-    @Override
-    public Object call(Object arg) throws Exception {
-      if (arg == null) return null;
-      if (!printErrors) return null;
-      if (arg instanceof DeferredGroupException) {
-        arg = RowsWithErrorException.fromDeferredGroupException((DeferredGroupException) arg);
+  private void apply(Operation op) {
+    try {
+      session.apply(op);
+    } catch (Exception ex) {
+      if (ex instanceof DeferredGroupException) {
+        ex = RowsWithErrorException.fromDeferredGroupException((DeferredGroupException) ex);
       }
-      if (arg instanceof RowsWithErrorException) {
-        RowsWithErrorException ex = (RowsWithErrorException) arg;
+      if (ex instanceof RowsWithErrorException) {
+        RowsWithErrorException rwe = (RowsWithErrorException) ex;
 
         // If we encountered a failover, skip. See KUDU-568.
-        if (ex.areAllErrorsOfAlreadyPresentType(false)) {
-          return null;
+        if (rwe.areAllErrorsOfAlreadyPresentType(false)) {
+          return;
         }
 
-        System.out.println(ex.toString());
-        for (RowsWithErrorException.RowError error : ex.getErrors()) {
+        System.out.println(rwe.toString());
+
+        for (RowsWithErrorException.RowError error : rwe.getErrors()) {
           System.out.println(" " + error.getMessage());
         }
-      } else if (arg instanceof Exception) {
-        System.out.println("Got exception " + arg.toString());
       } else {
-        System.out.println("Got an error response back " + arg);
+        System.out.println("Got exception " + ex.toString());
       }
-      return null;
     }
-  };
+  }
 
   // playground
   public static void main(String[] args) {
@@ -525,7 +472,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       }
     }
     System.out.println("Going to cleanup");
-    client.shutdown();
+    try {
+      client.shutdown();
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
     long en = System.currentTimeMillis();
 
     System.out.println("Throughput: " + ((1000.0) * (((double) (opcount * threadcount)) / ((double) (en - st)))) + " ops/sec");
