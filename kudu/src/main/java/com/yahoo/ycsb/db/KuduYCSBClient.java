@@ -250,11 +250,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
           .build();
 
       while (scanner.hasMoreRows()) {
-        AsyncKuduScanner.RowResultIterator data = scanner.nextRows();
+        RowResultIterator data = scanner.nextRows();
         addAllRowsToResult(data, recordcount, querySchema, result);
         if (recordcount == result.size()) break;
       }
-      AsyncKuduScanner.RowResultIterator closer = scanner.close();
+      RowResultIterator closer = scanner.close();
       addAllRowsToResult(closer, recordcount, querySchema, result);
     } catch (TimeoutException te) {
       if (printErrors) {
@@ -268,7 +268,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     return Ok;
   }
 
-  private void addAllRowsToResult(AsyncKuduScanner.RowResultIterator it, int recordcount,
+  private void addAllRowsToResult(RowResultIterator it, int recordcount,
                                   Schema querySchema, Vector<HashMap<String, ByteIterator>> result)
       throws Exception {
     RowResult row;
