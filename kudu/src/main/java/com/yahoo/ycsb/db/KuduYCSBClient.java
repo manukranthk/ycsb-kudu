@@ -17,7 +17,6 @@
 
 package com.yahoo.ycsb.db;
 
-import com.stumbleupon.async.DeferredGroupException;
 import com.stumbleupon.async.TimeoutException;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DBException;
@@ -193,7 +192,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public void cleanup() throws DBException {
 
     try {
-      ArrayList<OperationResponse> responses = this.session.flush();
+      ArrayList<BatchResponse> responses = this.session.flush();
       this.session.close();
     } catch (Exception e) {
       System.err.println("Couldn't cleanup properly because: " + e);
@@ -257,11 +256,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
           .build();
 
       while (scanner.hasMoreRows()) {
-        AsyncKuduScanner.RowResultIterator data = scanner.nextRows();
+        RowResultIterator data = scanner.nextRows();
         addAllRowsToResult(data, recordcount, querySchema, result);
         if (recordcount == result.size()) break;
       }
-      AsyncKuduScanner.RowResultIterator closer = scanner.close();
+      RowResultIterator closer = scanner.close();
       addAllRowsToResult(closer, recordcount, querySchema, result);
     } catch (TimeoutException te) {
       if (printErrors) {
@@ -275,7 +274,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     return Ok;
   }
 
-  private void addAllRowsToResult(AsyncKuduScanner.RowResultIterator it, int recordcount,
+  private void addAllRowsToResult(RowResultIterator it, int recordcount,
                                   Schema querySchema, Vector<HashMap<String, ByteIterator>> result)
       throws Exception {
     RowResult row;
@@ -353,25 +352,12 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
   private void apply(Operation op) {
     try {
-      session.apply(op);
-    } catch (Exception ex) {
-      if (ex instanceof DeferredGroupException) {
-        ex = RowsWithErrorException.fromDeferredGroupException((DeferredGroupException) ex);
+      OperationResponse response = session.apply(op);
+      if (printErrors && response.hasRowError()) {
+        System.out.println("Got a row error " + response.getRowError());
       }
-      if (ex instanceof RowsWithErrorException) {
-        RowsWithErrorException rwe = (RowsWithErrorException) ex;
-
-        // If we encountered a failover, skip. See KUDU-568.
-        if (rwe.areAllErrorsOfAlreadyPresentType(false)) {
-          return;
-        }
-
-        System.out.println(rwe.toString());
-
-        for (RowsWithErrorException.RowError error : rwe.getErrors()) {
-          System.out.println(" " + error.getMessage());
-        }
-      } else {
+    } catch (Exception ex) {
+      if (printErrors) {
         System.out.println("Got exception " + ex.toString());
       }
     }
