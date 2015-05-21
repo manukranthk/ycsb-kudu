@@ -54,6 +54,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public static final int Timeout = -4;
   public static final int MAX_TABLETS = 9000;
   public static final long DEFAULT_SLEEP = 10000;
+  private static final String SYNC_OPS_OPT = "sync_ops";
   private static final String DEBUG_OPT = "debug";
   private static final String PRINT_ROW_ERRORS_OPT = "print_row_errors";
   private static final String PRE_SPLIT_NUM_TABLETS_OPT = "pre_split_num_tablets";
@@ -91,7 +92,13 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     }
     initClient(debug, tableName, getProperties());
     this.session = client.newSession();
-    this.session.setFlushMode(KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
+    if (getProperties().getProperty(SYNC_OPS_OPT) != null &&
+        getProperties().getProperty(SYNC_OPS_OPT).equals("true")) {
+      this.session.setFlushMode(KuduSession.FlushMode.AUTO_FLUSH_SYNC);
+    } else {
+      this.session.setFlushMode(KuduSession.FlushMode.AUTO_FLUSH_BACKGROUND);
+    }
+
     this.session.setMutationBufferSpace(100);
     try {
       this.table = client.openTable(tableName);
