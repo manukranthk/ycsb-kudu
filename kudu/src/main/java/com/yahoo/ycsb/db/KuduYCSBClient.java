@@ -353,12 +353,13 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private void apply(Operation op) {
     try {
       OperationResponse response = session.apply(op);
-      if (printErrors && response.hasRowError()) {
+      if (response != null && response.hasRowError() && printErrors) {
         System.out.println("Got a row error " + response.getRowError());
       }
     } catch (Exception ex) {
       if (printErrors) {
         System.out.println("Got exception " + ex.toString());
+        ex.printStackTrace();
       }
     }
   }
