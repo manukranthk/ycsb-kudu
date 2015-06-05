@@ -131,11 +131,10 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     int numReplicas = getIntFromProp(prop, TABLE_NUM_REPLICAS, 3);
 
-    client = new KuduClient(masterQuorum);
+    client = new KuduClient.KuduClientBuilder(masterQuorum).build();
     if (debug) {
       System.out.println("Connecting to the masters at " + masterQuorum);
     }
-    client.setTimeoutMillis(DEFAULT_SLEEP);
 
     List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
     columns.add(keyColumn);
