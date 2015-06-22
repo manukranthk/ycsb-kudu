@@ -131,7 +131,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     int numReplicas = getIntFromProp(prop, TABLE_NUM_REPLICAS, 3);
 
-    client = new KuduClient.KuduClientBuilder(masterQuorum).build();
+    client = new KuduClient.KuduClientBuilder(masterQuorum).defaultSocketReadTimeoutMs(10000).defaultOperationTimeoutMs(60000).build();
     if (debug) {
       System.out.println("Connecting to the masters at " + masterQuorum);
     }
