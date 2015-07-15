@@ -63,6 +63,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
       .key(true)
       .build();
+  private static final List<String> columnNames = new ArrayList<String>();
   private static KuduClient client;
   private static Schema schema;
   public boolean debug = false;
@@ -138,16 +139,12 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
     columns.add(keyColumn);
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field0", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field1", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field2", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field3", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field4", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field5", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field6", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field7", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field8", STRING).build());
-    columns.add(new ColumnSchema.ColumnSchemaBuilder("field9", STRING).build());
+    columnNames.add(KEY);
+    for (int i = 0; i < 10; i++) {
+      String name = "field" + i;
+      columnNames.add(name);
+      columns.add(new ColumnSchema.ColumnSchemaBuilder(name, STRING).build());
+    }
     schema = new Schema(columns);
 
     CreateTableBuilder builder = new CreateTableBuilder();
@@ -229,17 +226,14 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public int scan(String table, String startkey, int recordcount, Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
 
     try {
-
-      Schema querySchema;
+      KuduScanner.KuduScannerBuilder scannerBuilder = client.newScannerBuilder(this.table);
+      List<String> querySchema;
       if (fields == null) {
-        querySchema = schema;
+        querySchema = columnNames;
+        // No need to set the projected columns with the whole schema.
       } else {
-        List<ColumnSchema> columns = new ArrayList<ColumnSchema>(fields.size() + 1);
-        columns.add(new ColumnSchema.ColumnSchemaBuilder("key", STRING).build());
-        for (String col : fields) { // TODO ugh do we need this for every single request?
-          columns.add(new ColumnSchema.ColumnSchemaBuilder(col, STRING).build());
-        }
-        querySchema = new Schema(columns);
+        querySchema = new ArrayList<String>(fields);
+        scannerBuilder.setProjectedColumnNames(querySchema);
       }
 
       ColumnRangePredicate crp = new ColumnRangePredicate(keyColumn);
@@ -248,8 +242,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
         crp.setUpperBound(startkey);
       }
 
-      KuduScanner scanner = client.newScannerBuilder(this.table, querySchema)
-          .maxNumBytes(recordcount * querySchema.getRowSize())
+      KuduScanner scanner = scannerBuilder
           .limit(recordcount) // currently noop
           .addColumnRangePredicate(crp)
           .build();
@@ -274,18 +267,19 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   }
 
   private void addAllRowsToResult(RowResultIterator it, int recordcount,
-                                  Schema querySchema, Vector<HashMap<String, ByteIterator>> result)
+                                  List<String> querySchema,
+                                  Vector<HashMap<String, ByteIterator>> result)
       throws Exception {
     RowResult row;
     HashMap<String, ByteIterator> rowResult =
-        new HashMap<String, ByteIterator>(querySchema.getColumnCount());
+        new HashMap<String, ByteIterator>(querySchema.size());
     if (it == null) return;
     while (it.hasNext()) {
       if (result.size() == recordcount) return;
       row = it.next();
       int colIdx = 0;
-      for (ColumnSchema col : querySchema.getColumns()) {
-        rowResult.put(col.getName(), new StringByteIterator(row.getString(colIdx)));
+      for (String col : querySchema) {
+        rowResult.put(col, new StringByteIterator(row.getString(colIdx)));
         colIdx++;
       }
       result.add(rowResult);
