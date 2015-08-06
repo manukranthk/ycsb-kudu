@@ -297,12 +297,13 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
    */
   public int update(String table, String key, HashMap<String, ByteIterator> values) {
     Update update = this.table.newUpdate();
-    update.addString(KEY, key);
+    PartialRow row = update.getRow();
+    row.addString(KEY, key);
     for (int i = 1; i < schema.getColumnCount(); i++) {
       String columnName = schema.getColumn(i).getName();
       if (values.containsKey(columnName)) {
         String value = values.get(columnName).toString();
-        update.addString(columnName, value);
+        row.addString(columnName, value);
       }
     }
     apply(update);
@@ -320,9 +321,10 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
    */
   public int insert(String table, String key, HashMap<String, ByteIterator> values) {
     Insert insert = this.table.newInsert();
-    insert.addString(KEY, key);
+    PartialRow row = insert.getRow();
+    row.addString(KEY, key);
     for (int i = 1; i < schema.getColumnCount(); i++) {
-      insert.addString(schema.getColumn(i).getName(), new String(values.get(schema.getColumn(i)
+      row.addString(schema.getColumn(i).getName(), new String(values.get(schema.getColumn(i)
           .getName()).toArray()));
     }
     apply(insert);
@@ -338,7 +340,8 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
    */
   public int delete(String table, String key) {
     Delete delete = this.table.newDelete();
-    delete.addString(KEY, key);
+    PartialRow row = delete.getRow();
+    row.addString(KEY, key);
     apply(delete);
     return Ok;
   }
