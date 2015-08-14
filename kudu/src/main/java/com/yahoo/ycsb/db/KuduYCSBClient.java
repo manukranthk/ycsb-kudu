@@ -149,13 +149,14 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     CreateTableBuilder builder = new CreateTableBuilder();
     builder.setNumReplicas(numReplicas);
-    KeyBuilder keyBuilder = new KeyBuilder(schema);
     // create n-1 split keys, which will end up being n tablets master-side
     for (int i = 1; i < numTablets + 0; i++) {
       // We do +1000 since YCSB starts at user1.
       int startKeyInt = (MAX_TABLETS / numTablets * i) + 1000;
       String startKey = String.format("%04d", startKeyInt);
-      builder.addSplitKey(keyBuilder.addString("user" + startKey));
+      PartialRow splitRow = schema.newPartialRow();
+      splitRow.addString(0, "user" + startKey);
+      builder.addSplitRow(splitRow);
     }
 
     try {
