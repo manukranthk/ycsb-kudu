@@ -59,10 +59,9 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   private static final String PRE_SPLIT_NUM_TABLETS_OPT = "pre_split_num_tablets";
   private static final String TABLE_NUM_REPLICAS = "table_num_replicas";
   private static final String TABLE_NAME_OPT = "table_name";
+  private static final String BLOCK_SIZE_OPT = "block_size";
+  private static final int BLOCK_SIZE_DEFAULT = 4096;
   private static final String DEFAULT_TABLE_NAME = "ycsb";
-  private static final ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
-      .key(true)
-      .build();
   private static final List<String> columnNames = new ArrayList<String>();
   private static KuduClient client;
   private static Schema schema;
@@ -132,18 +131,27 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
 
     int numReplicas = getIntFromProp(prop, TABLE_NUM_REPLICAS, 3);
 
+    int blockSize = getIntFromProp(prop, BLOCK_SIZE_OPT, BLOCK_SIZE_DEFAULT);
+
     client = new KuduClient.KuduClientBuilder(masterQuorum).defaultSocketReadTimeoutMs(10000).defaultOperationTimeoutMs(60000).build();
     if (debug) {
       System.out.println("Connecting to the masters at " + masterQuorum);
     }
 
     List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
+
+    ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
+                             .key(true)
+                             .desiredBlockSize(blockSize)
+                             .build();
     columns.add(keyColumn);
     columnNames.add(KEY);
     for (int i = 0; i < 10; i++) {
       String name = "field" + i;
       columnNames.add(name);
-      columns.add(new ColumnSchema.ColumnSchemaBuilder(name, STRING).build());
+      columns.add(new ColumnSchema.ColumnSchemaBuilder(name, STRING)
+                  .desiredBlockSize(blockSize)
+                  .build());
     }
     schema = new Schema(columns);
 
