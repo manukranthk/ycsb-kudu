@@ -312,7 +312,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     PartialRow row = update.getRow();
     row.addString(KEY, key);
     for (int i = 1; i < schema.getColumnCount(); i++) {
-      String columnName = schema.getColumn(i).getName();
+      String columnName = schema.getColumnByIndex(i).getName();
       if (values.containsKey(columnName)) {
         String value = values.get(columnName).toString();
         row.addString(columnName, value);
@@ -336,8 +336,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     PartialRow row = insert.getRow();
     row.addString(KEY, key);
     for (int i = 1; i < schema.getColumnCount(); i++) {
-      row.addString(schema.getColumn(i).getName(), new String(values.get(schema.getColumn(i)
-          .getName()).toArray()));
+      row.addString(i, new String(values.get(schema.getColumnByIndex(i).getName()).toArray()));
     }
     apply(insert);
     return Ok;
