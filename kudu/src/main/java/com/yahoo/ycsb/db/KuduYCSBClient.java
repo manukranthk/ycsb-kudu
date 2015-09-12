@@ -197,7 +197,6 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
   public void cleanup() throws DBException {
 
     try {
-      List<BatchResponse> responses = this.session.flush();
       this.session.close();
     } catch (Exception e) {
       System.err.println("Couldn't cleanup properly because: " + e);
