@@ -290,8 +290,11 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
     Insert insert = this.table.newInsert();
     PartialRow row = insert.getRow();
     row.addString(KEY, key);
-    for (int i = 1; i < schema.getColumnCount(); i++) {
-      row.addString(i, new String(values.get(schema.getColumnByIndex(i).getName()).toArray()));
+    for (int i = 0; i < schema.getColumnCount(); i++) {
+      String colName = schema.getColumnByIndex(i).getName();
+      if (values.get(colName) != null) {
+        row.addString(i, new String(values.get(colName).toArray()));
+      }
     }
     apply(insert);
     return OK;

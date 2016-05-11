@@ -143,11 +143,18 @@ def get_classpath_from_maven(database):
     try:
         debug("Running 'mvn -pl com.yahoo.ycsb:"+database+"-binding -am package -DskipTests "
               "dependency:build-classpath -DincludeScope=compile -Dmdep.outputFilterFile=true'")
-        mvn_output = subprocess.check_output(["mvn", "-pl", "com.yahoo.ycsb:"+database+"-binding",
+        mvn_output, mvn_err = subprocess.Popen(["mvn", "-pl", "com.yahoo.ycsb:"+database+"-binding",
                                               "-am", "package", "-DskipTests",
                                               "dependency:build-classpath",
                                               "-DincludeScope=compile",
-                                              "-Dmdep.outputFilterFile=true"])
+                                              "-Dmdep.outputFilterFile=true",
+                                              "-Djava.net.preferIPv6Addresses=true",
+                                              "-Dhttp.proxyHost=fwdproxy",
+                                              "-Dhttps.proxyHost=fwdproxy",
+                                              "-Dhttp.proxyPort=8080",
+                                              "--settings=/home/manukranthk/.m2/alt-settings.xml",],
+                                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                              ).communicate()
         # the above outputs a "classpath=/path/tojar:/path/to/other/jar" for each module
         # the last module will be the datastore binding
         line = [x for x in mvn_output.splitlines() if x.startswith("classpath=")][-1:]
