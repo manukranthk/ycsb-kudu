@@ -123,7 +123,8 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
       System.out.println("Connecting to the masters at " + masterQuorum);
     }
 
-    List<ColumnSchema> columns = new ArrayList<ColumnSchema>(11);
+    int fieldcount = com.yahoo.ycsb.workloads.CoreWorkload.fieldcount;
+    List<ColumnSchema> columns = new ArrayList<ColumnSchema>(fieldcount + 1);
 
     ColumnSchema keyColumn = new ColumnSchema.ColumnSchemaBuilder(KEY, STRING)
                              .key(true)
@@ -131,7 +132,7 @@ public class KuduYCSBClient extends com.yahoo.ycsb.DB {
                              .build();
     columns.add(keyColumn);
     columnNames.add(KEY);
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < fieldcount; i++) {
       String name = "field" + i;
       columnNames.add(name);
       columns.add(new ColumnSchema.ColumnSchemaBuilder(name, STRING)

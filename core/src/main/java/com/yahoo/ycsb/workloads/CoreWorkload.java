@@ -91,7 +91,7 @@ public class CoreWorkload extends Workload
 	 */
 	public static final String FIELD_COUNT_PROPERTY_DEFAULT="10";
 
-	int fieldcount;
+	public static int fieldcount;
 
 	private List<String> fieldnames;
 

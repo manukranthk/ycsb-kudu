@@ -24,7 +24,7 @@
 
 recordcount=10000000
 operationcount=2000
-fieldcount=10
+fieldcount=3
 fieldlengthdistribution=uniform
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
